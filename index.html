@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Time Progress</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111111;
+      --border: #1e1e1e;
+      --text-primary: #e8e6e0;
+      --text-secondary: #5a5750;
+      --text-muted: #2e2c28;
+      --accent: #c8b89a;
+      --accent-dim: #6b5f4e;
+      --bar-track: #161614;
+      --bar-fill: #c8b89a;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 300;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Subtle noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .title {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: clamp(1.1rem, 3vw, 1.6rem);
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Top label */
+    .label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    /* Big percentage */
+    .percentage-wrap {
+      text-align: center;
+      line-height: 1;
+      margin-bottom: 2.5rem;
+    }
+
+    .percentage {
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 300;
+      font-size: clamp(3.5rem, 12vw, 8rem);
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      display: inline-block;
+      transition: color 0.4s ease;
+    }
+
+    .percentage.complete {
+      color: var(--accent);
+    }
+
+    .pct-symbol {
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      color: var(--accent-dim);
+      vertical-align: super;
+      margin-left: 0.15em;
+    }
+
+    /* Progress bar */
+    .bar-wrap {
+      width: 100%;
+      margin-bottom: 3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 2px;
+      background: var(--bar-track);
+      border-radius: 0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.1s linear;
+      position: relative;
+    }
+
+    /* Glint on the bar */
+    .bar-fill::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      height: 100%;
+      width: 40px;
+      background: linear-gradient(to right, transparent, rgba(255,255,255,0.35));
+    }
+
+    .bar-ends {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    /* Meta info grid */
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 1px;
+    }
+
+    .meta-item {
+      background: var(--surface);
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .meta-item.full {
+      grid-column: 1 / -1;
+    }
+
+    .meta-key {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.55rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    .meta-val {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-primary);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .meta-val.remaining {
+      color: var(--accent);
+    }
+
+    .meta-val.done {
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 2.5rem;
+      text-align: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.55rem;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 480px) {
+      .meta {
+        grid-template-columns: 1fr;
+      }
+      .meta-item.full {
+        grid-column: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">THE DAY CAGE OPENS FOR ANUP GHIMIRE</div>
+    <div class="label">elapsed interval</div>
+
+    <div class="percentage-wrap">
+      <span class="percentage" id="pct">0.00000</span><span class="pct-symbol">%</span>
+    </div>
+
+    <div class="bar-wrap">
+      <div class="bar-track">
+        <div class="bar-fill" id="bar"></div>
+      </div>
+      <div class="bar-ends">
+        <span>0%</span>
+        <span>100%</span>
+      </div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-item">
+        <span class="meta-key">start</span>
+        <span class="meta-val" id="start-time">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-key">end</span>
+        <span class="meta-val" id="end-time">—</span>
+      </div>
+      <div class="meta-item full">
+        <span class="meta-key">remaining</span>
+        <span class="meta-val remaining" id="remaining">—</span>
+      </div>
+    </div>
+
+    <div class="footer">updates 10× per second · timestamps in local time</div>
+  </div>
+
+  <script>
+    const DAYS_OFFSET = 5051;
+    const END_MONTH   = 4;   // May (0-indexed)
+    const END_DAY     = 10;
+    const END_HOUR    = 11;
+    const END_MIN     = 0;
+
+    function pad(n, w = 2) { return String(n).padStart(w, '0'); }
+
+    function formatDate(ts) {
+      const d = new Date(ts);
+      return (
+        d.getFullYear() + '-' +
+        pad(d.getMonth() + 1) + '-' +
+        pad(d.getDate()) + '  ' +
+        pad(d.getHours()) + ':' +
+        pad(d.getMinutes()) + ':' +
+        pad(d.getSeconds())
+      );
+    }
+
+    function formatRemaining(ms) {
+      if (ms <= 0) return 'interval complete';
+      const totalSec = Math.floor(ms / 1000);
+      const days     = Math.floor(totalSec / 86400);
+      const hours    = Math.floor((totalSec % 86400) / 3600);
+      const mins     = Math.floor((totalSec % 3600) / 60);
+      const secs     = totalSec % 60;
+      return `${days}d  ${pad(hours)}h  ${pad(mins)}m  ${pad(secs)}s`;
+    }
+
+    // Compute fixed endpoints
+    const startTs  = new Date(2012, 3, 13, 10, 0, 0, 0).getTime();
+
+    // End date: next May 10 at 11:00 local — pick the nearest upcoming one
+    function getEndTs() {
+      const now = new Date();
+      let candidate = new Date(now.getFullYear(), END_MONTH, END_DAY, END_HOUR, END_MIN, 0, 0);
+      if (candidate.getTime() <= Date.now()) {
+        candidate = new Date(now.getFullYear() + 1, END_MONTH, END_DAY, END_HOUR, END_MIN, 0, 0);
+      }
+      return candidate.getTime();
+    }
+    const endTs = getEndTs();
+
+    // Populate static fields
+    document.getElementById('start-time').textContent = formatDate(startTs);
+    document.getElementById('end-time').textContent   = formatDate(endTs);
+
+    const pctEl       = document.getElementById('pct');
+    const barEl       = document.getElementById('bar');
+    const remainingEl = document.getElementById('remaining');
+
+    let lastBarWidth = -1;
+
+    function tick() {
+      const now      = Date.now();
+      const raw      = (now - startTs) / (endTs - startTs) * 100;
+      const clamped  = Math.min(100, Math.max(0, raw));
+      const display  = clamped.toFixed(9);
+
+      pctEl.textContent = display;
+
+      if (clamped >= 100) {
+        pctEl.classList.add('complete');
+        remainingEl.textContent = 'interval complete';
+        remainingEl.classList.add('done');
+        remainingEl.classList.remove('remaining');
+      } else {
+        pctEl.classList.remove('complete');
+        remainingEl.textContent = formatRemaining(endTs - now);
+        remainingEl.classList.add('remaining');
+        remainingEl.classList.remove('done');
+      }
+
+      // Only update bar width when it meaningfully changes (avoids jitter)
+      const newWidth = parseFloat(display);
+      if (Math.abs(newWidth - lastBarWidth) >= 0.0001) {
+        barEl.style.width = clamped.toFixed(4) + '%';
+        lastBarWidth = newWidth;
+      }
+    }
+
+    tick();
+    setInterval(tick, 100);
+  </script>
+</body>
+</html>
